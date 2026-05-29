@@ -5,41 +5,64 @@
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/wait.h>
-#include "clear.c"
+#include <signal.h>
+#include <errno.h>
 
 
+
+int shell();
 void execute(char *buffer);
 
+volatile sig_atomic_t caught = 0;
+void SIGhandler(int sig) {
+    caught = sig;
+}
+
 int main() {
-    fputs("Welcome to fcsh! The friendly c-shell\n", stdout);
-    int i = true;
-    char input[1024];
+    signal(SIGINT, SIGhandler);
+    shell();
+    
+    return EXIT_SUCCESS;
+}
 
-    while(i) {
-        printf("fcsh> ");
-        char *get = fgets(input, sizeof(input), stdin);
-        input[sizeof(input)] = *get;
+
+int shell() {
+    fputs("Welcome to fcsh! The Fast c-shell\n", stdout);
+    char buffer[1024];
+    
+    while(true) {
+        write(1, "fcsh> ", 6);
+        int input = read(0, buffer, sizeof(buffer) - 1);
         
-        if (input[0] == '\n') {
-            continue;
+        if (input < 0) {
+            if (errno == EINTR) {
+                write(1, "\n", 1);
+                caught = 0;
+                continue;
+            }
+            break;
+        }
+        
+        if (input == 0) {
+            break;
         };
+
+
+        if (input > 0 && buffer[input - 1] == '\n') {
+            buffer[input - 1] = '\0';
+        }
         
-        char *check = strstr(input, "clear");
-        if (check) {
-            clearScreen();
-        } else if (!check) {
-            input[strcspn(input, "\n")] = 0;
-            execute(input);
+        if (strcmp(buffer, "exit") == 0) {
+            break;
         }
 
-        if (get) {
-            continue;
-        }
+        execute(buffer);
 
     }
 
-}
+    return 0;
 
+}
 
 void execute(char *buffer) {
     char *argv[1024];
@@ -69,3 +92,5 @@ void execute(char *buffer) {
         wait(NULL);
     }
 }
+
+
