@@ -1,74 +1,66 @@
 #include <stdio.h>
-#include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdlib.h>
-#include <sys/types.h>
 #include <sys/wait.h>
 #include <signal.h>
 #include <errno.h>
 
-
-
-int shell();
 void execute(char *buffer);
+volatile sig_atomic_t interrupted = 0;
 
-volatile sig_atomic_t caught = 0;
-void SIGhandler(int sig) {
-    caught = sig;
+void sighandler(int sig) {
+    interrupted = 1;
+    (void) sig;
+    write(1, "\nfcsh> ", 7);
 }
+
 
 int main() {
-    signal(SIGINT, SIGhandler);
-    shell();
-    
-    return EXIT_SUCCESS;
-}
-
-
-int shell() {
-    fputs("Welcome to fcsh! The Fast c-shell\n", stdout);
     char buffer[1024];
+    printf("Welcome to fcsh! The Fast c-shell\n");
     
-    while(true) {
-        write(1, "fcsh> ", 6);
-        int input = read(0, buffer, sizeof(buffer) - 1);
+    signal(SIGINT, sighandler);
+    while (1) {
+        printf("fcsh> ");
         
-        if (input < 0) {
+        if (interrupted == 1) {
+            ;
+        }
+
+        fflush(stdout);
+        char *input = fgets(buffer, sizeof(buffer), stdin);
+        if (input == NULL) {
             if (errno == EINTR) {
-                write(1, "\n", 1);
-                caught = 0;
+                clearerr(stdin);
                 continue;
             }
+            printf("\nexit\n");
             break;
+        } else if (input != NULL) {
+            if (input[0] == '\n') {
+                continue;
+            }
         }
         
-        if (input == 0) {
-            break;
-        };
-
-
-        if (input > 0 && buffer[input - 1] == '\n') {
-            buffer[input - 1] = '\0';
-        }
+        buffer[strcspn(buffer, "\n")] = '\0';
         
         if (strcmp(buffer, "exit") == 0) {
+            printf("exit\n");
             break;
-        }
-
+        };
+        
         execute(buffer);
-
     }
 
     return 0;
-
 }
+
 
 void execute(char *buffer) {
     char *argv[1024];
     int b = 0;
     char *token = strtok(buffer, " ");
-
     while (token != NULL) {
         argv[b] = token;
         b++;
@@ -76,21 +68,13 @@ void execute(char *buffer) {
     }
     argv[b] = NULL;
 
-    if (argv[0] == NULL) {
-        return;
-    }
+    if (argv[0] == NULL) return;
 
     pid_t pid = fork();
-
-    if (pid < 0) {
-        return;
-    } else if (pid == 0) {
-        if (execvp(argv[0], argv) == -1) {
-            exit(1);
-        }
-    } else {
-        wait(NULL);
+    if (pid == 0) {
+        execvp(argv[0], argv);
+        exit(1);
     }
+    wait(NULL);
 }
-
 
