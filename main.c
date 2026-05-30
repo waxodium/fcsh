@@ -5,6 +5,9 @@
 #include <sys/wait.h>
 #include <signal.h>
 #include <errno.h>
+#include <termios.h>
+
+#define ENOTFOUND 127
 
 void execute(char *buffer);
 volatile sig_atomic_t interrupted = 0;
@@ -17,40 +20,66 @@ void sighandler(int sig) {
 
 
 int main() {
-    char buffer[1024];
     printf("Welcome to fcsh! The Fast c-shell\n");
     
     signal(SIGINT, sighandler);
+    int promptable = 1;
+    // write(1, "\nfcsh> ", 7);
+    
     while (1) {
-        printf("fcsh> ");
-        
         if (interrupted == 1) {
-            ;
+            interrupted = 0;
+            promptable = 0;
+        } else {
+            fflush(stdout);
         }
 
-        fflush(stdout);
-        char *input = fgets(buffer, sizeof(buffer), stdin);
-        if (input == NULL) {
+        if (promptable) {
+            write(1, "fcsh> ", 7);
+            fflush(stdout);
+        }
+        promptable = 1; 
+
+
+        fflush(stdout); 
+        char *line = NULL;
+        size_t len = 0;
+        ssize_t read;
+
+        read = getline(&line, &len, stdin);
+
+        if (read == EOF) {
             if (errno == EINTR) {
                 clearerr(stdin);
+                promptable = 0;
                 continue;
             }
             printf("\nexit\n");
+            free(line);
             break;
-        } else if (input != NULL) {
-            if (input[0] == '\n') {
-                continue;
-            }
+        }
+
+        if (read > 0 && line[read - 1] == '\n') {
+            line[read - 1] = '\0';
+        }
+
+
+        if (line[0] == '\n') {
+            free(line);
+            continue;
         }
         
-        buffer[strcspn(buffer, "\n")] = '\0';
         
-        if (strcmp(buffer, "exit") == 0) {
+        if (strcmp(line, "exit") == 0) {
             printf("exit\n");
+            free(line);
             break;
         };
+
         
-        execute(buffer);
+        execute(line);
+        free(line);
+
     }
 
     return 0;
@@ -72,9 +101,15 @@ void execute(char *buffer) {
 
     pid_t pid = fork();
     if (pid == 0) {
+
         execvp(argv[0], argv);
+        if (errno == ENOENT) {
+            printf("fcsh: %s: command not found\n", buffer);
+            exit(ENOTFOUND);
+        }
         exit(1);
     }
+
     wait(NULL);
 }
 
