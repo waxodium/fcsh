@@ -1,90 +1,88 @@
 #include <stdio.h>
-#include <string.h>
-#include <unistd.h>
 #include <stdlib.h>
-#include <sys/wait.h>
-#include <signal.h>
-#include <errno.h>
 #include <termios.h>
+#include <unistd.h>
 
-#define ENOTFOUND 127
+#include <sys/wait.h>
+#include <string.h>
+#include <errno.h>
+#include <stdlib.h>
 
+#include "lib/sout.h"
+
+void enableRaw(struct termios *orgTerminal);
+void disableRaw(struct termios *orgTerminal);
 void execute(char *buffer);
-volatile sig_atomic_t interrupted = 0;
 
-void sighandler(int sig) {
-    interrupted = 1;
-    (void) sig;
-    write(1, "\nfcsh> ", 7);
-}
+struct termios cookedTerminal;
 
+int main() {   
+    char buffer[1024];
+    int position = 0;
+    char character;
+    char prompt[] = "fcsh> ";
+    enableRaw(&cookedTerminal);
 
-int main() {
-    printf("Welcome to fcsh! The Fast c-shell\n");
-    
-    signal(SIGINT, sighandler);
-    int promptable = 1;
-    // write(1, "\nfcsh> ", 7);
-    
+    sout("%s", prompt);
+
     while (1) {
-        if (interrupted == 1) {
-            interrupted = 0;
-            promptable = 0;
-        } else {
-            fflush(stdout);
-        }
-
-        if (promptable) {
-            write(1, "fcsh> ", 7);
-            fflush(stdout);
-        }
-        promptable = 1; 
-
-
-        fflush(stdout); 
-        char *line = NULL;
-        size_t len = 0;
-        ssize_t read;
-
-        read = getline(&line, &len, stdin);
-
-        if (read == EOF) {
-            if (errno == EINTR) {
-                clearerr(stdin);
-                promptable = 0;
-                continue;
+        if (read(STDIN_FILENO, &character, 1) == 1) {
+            // Enter key (ASCII 13)
+            if (character == 13) {
+                if (character == 13 || character == 10) {
+                    buffer[position] = '\0';
+                
+                    sout("\r\n");
+                
+                    if (position > 0) {
+                        execute(buffer);
+                    }
+                
+                    sout("%s", prompt);
+                
+                    position = 0;
+                }
+            } 
+            // Backspace (ASCII 127)
+            else if (character == 127) {
+                if (position > 0) {
+                    position--;
+                    sout("\b \b");
+                }
+            } 
+            
+            else if (position < 1023) {
+                buffer[position++] = character;
+                sout("%c", character);
             }
-            printf("\nexit\n");
-            free(line);
-            break;
         }
-
-        if (read > 0 && line[read - 1] == '\n') {
-            line[read - 1] = '\0';
-        }
-
-
-        if (line[0] == '\n') {
-            free(line);
-            continue;
-        }
-        
-        
-        if (strcmp(line, "exit") == 0) {
-            printf("exit\n");
-            free(line);
-            break;
-        };
-
-        
-        execute(line);
-        free(line);
-
     }
 
+    disableRaw(&cookedTerminal);
     return 0;
 }
 
+
+void enableRaw(struct termios *orgTerminal) {
+    struct termios rawTerminal;
+
+    tcgetattr(STDIN_FILENO, orgTerminal);
+    rawTerminal = *orgTerminal;
+
+    rawTerminal.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    rawTerminal.c_oflag &= ~(OPOST);
+    rawTerminal.c_cflag |= (CS8);
+    rawTerminal.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+
+    rawTerminal.c_cc[VMIN] = 0;
+    rawTerminal.c_cc[VTIME] = 1;
+
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, &rawTerminal); 
+}
+
+void disableRaw(struct termios *orgTerminal) {
+    tcsetattr(STDIN_FILENO, TCSAFLUSH, orgTerminal);
+}
 
 void execute(char *buffer) {
     char *argv[1024];
@@ -98,18 +96,19 @@ void execute(char *buffer) {
     argv[b] = NULL;
 
     if (argv[0] == NULL) return;
+    disableRaw(&cookedTerminal);
 
     pid_t pid = fork();
     if (pid == 0) {
-
         execvp(argv[0], argv);
+        
         if (errno == ENOENT) {
-            printf("fcsh: %s: command not found\n", buffer);
-            exit(ENOTFOUND);
+            sout("\r\nfcsh: %s: command not found\r\n", buffer);
         }
         exit(1);
+    } else if (pid > 0) {
+        wait(NULL);
     }
 
-    wait(NULL);
+    enableRaw(&cookedTerminal);
 }
-
