@@ -6,13 +6,13 @@ A fast and furious C-shell made for Unix/Linux platform. An alternative to bash.
 
 ## Build & Install
 
-### Build fcsh
-1. Clone the fcsh repository: ``github.com/waxodium/fcsh``
+### Build fash
+1. Clone the fash repository: ``github.com/waxodium/fash``
 ```bash
 git clone https://github.com/waxodium/fash.git
 cd fash
 ```
-2. Once in fcsh. Use ``make build`` to construct binary
+2. Once in fash. Use ``make build`` to construct binary
 ```bash
 make build
 ```
@@ -21,7 +21,7 @@ Other Makefile target rules:
 * ``make run`` : compile then run.
 * ``make clean``: clean up.
 
-### Install fcsh
+### Install fash
 Manually move fash to the `/usr/bin` directory
 ```
 sudo mv fash /usr/bin/
