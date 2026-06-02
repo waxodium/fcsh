@@ -21,5 +21,5 @@ SOFTWARE.
 */
 
 
-void _putchar(char character);
+void write_chunk(const char *buf, int length);
 void sout(const char *format, ...);
