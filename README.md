@@ -1,5 +1,5 @@
 # fash (Fast Again Shell)
-A fast and furious C-shell made for Unix/Linux platform. An alternative to bash.
+A fast and furious C-shell that belongs to Bourne family, made for Unix/Linux platform.
 
 > [!NOTE]
 > Experimental & in early concept development.
@@ -52,6 +52,6 @@ Undocumented
 [fcsh] is [MIT] Licensed
 
 
-[fcsh]: https://github.com/waxodium/fcsh
+[fash]: https://github.com/waxodium/fash
 [MIT]: https://github.com/waxodium/fcsh/blob/main/LICENSE
 
