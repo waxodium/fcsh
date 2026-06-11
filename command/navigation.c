@@ -7,6 +7,9 @@
 #include "terminal.h"
 #include "navigation.h"
 
+#define MaxDir 10
+#define PathMax 4096
+
 int fclear(char **argv) {
     (void) **argv;
     write(STDOUT_FILENO, "\033c", 2);
@@ -22,10 +25,34 @@ int fexit(char **argv) {
 }
 
 
+char dirHistory[MaxDir][PathMax];
+int cdCount = 0;
+int historyHead = -1; 
+
+void pushDirHistory(const char *path) {
+    if (cdCount > 0 && strcmp(dirHistory[historyHead], path) == 0) {
+        return;
+    }
+    
+    historyHead = (historyHead + 1) % MaxDir;
+    strncpy(dirHistory[historyHead], path, PathMax);
+    
+    if (cdCount < MaxDir) {
+        cdCount++;
+    }
+}
+
 int cd(char **argv) {
     char *targetDir = argv[1];
     char pathBuffer[4096];
+    char currentDirBuffer[4096];
     char *homeDir = getenv("HOME");
+    char *oldPwd = getenv("OLDPWD");
+
+    if (getcwd(currentDirBuffer, sizeof(currentDirBuffer)) == NULL) {
+        sout("\rfash: cd: cannot determine current directory\r\n");
+        return 1;
+    }
 
     if (targetDir == NULL || strcmp(targetDir, "~") == 0) {
         if (!homeDir) {
@@ -40,12 +67,26 @@ int cd(char **argv) {
         }
         snprintf(pathBuffer, sizeof(pathBuffer), "%s%s", homeDir, targetDir + 1);
         targetDir = pathBuffer;
+    } else if (strcmp(targetDir, "-") == 0) {
+        if (!oldPwd) {
+            sout("\rfash: cd: OLDPWD not set\r\n");
+            return 1;
+        }
+        sout("%s\r\n", oldPwd);
+        targetDir = oldPwd;
     }
-
-    
 
     if (chdir(targetDir) != 0) {
         sout("\rfash: cd: %s: No such file or directory\r\n", argv[1]);
+        return 1;
+    }
+
+    char newDirBuffer[4096];
+    if (getcwd(newDirBuffer, sizeof(newDirBuffer)) != NULL) {
+        setenv("OLDPWD", currentDirBuffer, 1);
+        setenv("PWD", newDirBuffer, 1);
+        
+        pushDirHistory(newDirBuffer);
     }
 
     return 1;
