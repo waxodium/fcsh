@@ -96,7 +96,9 @@ int main() {
             }
             break; 
 
-        case 27: // Arrows
+        // Arrows
+        case 27:
+            ;
             char seq[2];
             if (read(STDIN_FILENO, &seq[0], 1) <= 0 || read(STDIN_FILENO, &seq[1], 1) <= 0) {
                 break;
